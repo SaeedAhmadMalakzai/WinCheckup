@@ -1000,6 +1000,17 @@ function Get-DeviceSpec {
     return [pscustomobject]@{ Spec = $spec.ToArray(); Facts = $facts }
 }
 
+function Get-DeviceLabel {
+    # Device Manager name, or the hardware ID for devices that have no driver and so no name.
+    param($Device)
+    $name = Get-Clean $Device.Name
+    if ($name) { return $name }
+    $id = Get-Clean $Device.PNPDeviceID
+    if ($id.Length -gt 48) { $id = $id.Substring(0, 48) + '...' }
+    if ($id) { return 'Unnamed device ' + $id }
+    return 'Unnamed device'
+}
+
 function Invoke-AutoChecks {
     # Checks Windows can answer by itself. Physical tests follow later.
     param($Inv, $Facts, [switch]$Quiet)
@@ -1036,7 +1047,7 @@ function Invoke-AutoChecks {
     $problems = @($pnp | Where-Object { $null -ne $_.ConfigManagerErrorCode -and [int]$_.ConfigManagerErrorCode -ne 0 })
     if ($pnp.Count -eq 0) { & $set 'Device Manager errors' 'SKIP' 'Device list unavailable' }
     elseif ($problems.Count) {
-        $names = (@($problems | Select-Object -First 3 | ForEach-Object { '{0} (code {1})' -f (Get-Clean $_.Name), $_.ConfigManagerErrorCode })) -join '; '
+        $names = (@($problems | Select-Object -First 3 | ForEach-Object { '{0} (code {1})' -f (Get-DeviceLabel $_), $_.ConfigManagerErrorCode })) -join '; '
         if ($problems.Count -gt 3) { $names += ('; +{0} more' -f ($problems.Count - 3)) }
         & $set 'Device Manager errors' 'WARN' $names
     } else { & $set 'Device Manager errors' 'PASS' 'All devices working' }

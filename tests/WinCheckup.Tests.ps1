@@ -363,6 +363,14 @@ Describe 'Automatic checks' {
         ($script:Results | Where-Object { $_.Name -eq 'Device Manager errors' }).Note | Should -Match 'Unknown device \(code 28\)'
     }
 
+    It 'names a device that has no driver by its hardware ID' {
+        $inv = New-FakeInventory
+        $inv.Pnp += [pscustomobject]@{ Name = $null; PNPClass = ''; PNPDeviceID = 'ACPI\VMBUS\0'; ConfigManagerErrorCode = 28; Status = 'Error' }
+        Reset-Run $inv
+        Invoke-AutoChecks $inv $script:Facts -Quiet
+        ($script:Results | Where-Object { $_.Name -eq 'Device Manager errors' }).Note | Should -Be 'Unnamed device ACPI\VMBUS\0 (code 28)'
+    }
+
     It 'warns about a clock set before the BIOS date' {
         $inv = New-FakeInventory
         $inv.Bios.ReleaseDate = (Get-Date).AddYears(1)
