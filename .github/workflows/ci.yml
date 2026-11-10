@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, tests and a real run on Windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester and PSScriptAnalyzer
+        shell: powershell
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+
+      - name: Lint
+        shell: powershell
+        run: |
+          $issues = foreach ($path in @('src', 'tests', 'build.ps1')) { Invoke-ScriptAnalyzer -Path $path -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 }
+          $issues | Format-Table -AutoSize -Wrap
+          if ($issues) { exit 1 }
+
+      - name: Unit tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Import-Module Pester -MinimumVersion 5.5.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: Unit tests (PowerShell 7)
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          Import-Module Pester -MinimumVersion 5.5.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests'
+          $config.Run.Exit = $true
+          Invoke-Pester -Configuration $config
+
+      - name: Unattended inventory of the runner
+        shell: powershell
+        timeout-minutes: 8
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'reports'
+          $settings = Join-Path $env:RUNNER_TEMP 'ci-settings.json'
+          Set-Content -LiteralPath $settings -Value '{ "SavePdfCopy": false }'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File src\WinCheckup.ps1 -Unattended -AssetTag CI-SMOKE -ItemNumber 1 -ReportFolder $out -ConfigPath $settings
+          if ($LASTEXITCODE -ne 0) { throw "The tool exited with code $LASTEXITCODE" }
+          $json = Get-ChildItem -LiteralPath $out -Filter '*.json' | Select-Object -First 1
+          if (-not $json) { throw 'No JSON report was written' }
+          $data = Get-Content -Raw -LiteralPath $json.FullName | ConvertFrom-Json
+          if ($data.inspection.assetTag -ne 'CI-SMOKE') { throw 'Wrong asset tag in the JSON report' }
+          if (-not $data.device.processor) { throw 'The processor was not read' }
+          if (@($data.results).Count -lt 5) { throw 'Automatic checks are missing' }
+          if (-not (Test-Path -LiteralPath (Join-Path $out 'WinCheckup_Log.csv'))) { throw 'No device log was written' }
+          Get-Content -LiteralPath ($json.FullName -replace '\.json$', '.txt') -TotalCount 70
+
+      - name: Keep the runner's report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: ${{ runner.temp }}/reports
+          if-no-files-found: ignore
+
+  build:
+    name: Build zip and setup.exe
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NSIS
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      - name: Build
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { ./build.ps1 -Tag $env:GITHUB_REF_NAME } else { ./build.ps1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  release:
+    name: Publish the GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## /{p = index($0, "[" v "]") > 0; next} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "WinCheckup $version" > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "WinCheckup $version" --notes-file notes.md

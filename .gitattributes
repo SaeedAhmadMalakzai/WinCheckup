@@ -1,0 +1,18 @@
+* text=auto
+
+# Windows files: always CRLF in the working tree
+*.ps1   text eol=crlf
+*.psd1  text eol=crlf
+*.cmd   text eol=crlf
+*.nsi   text eol=crlf
+*.txt   text eol=crlf
+*.json  text eol=crlf
+
+# Repository files
+*.md    text eol=lf
+*.yml   text eol=lf
+*.py    text eol=lf
+LICENSE text eol=lf
+
+*.ico   binary
+*.png   binary

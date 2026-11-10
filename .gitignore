@@ -1,0 +1,14 @@
+# Build output
+/build/
+/dist/
+
+# Reports written when the tool is run from the source folder
+Reports/
+*.pdf
+WinCheckup_Log*.csv
+
+# Local settings and editor files
+/src/config.local.json
+.DS_Store
+Thumbs.db
+.vscode/

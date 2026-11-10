@@ -1,0 +1,36 @@
+{
+  "_comment": "Settings for WinCheckup. Remove a line to use the default. Keys starting with _ are notes and are ignored.",
+  "_comment_people": "Empty InspectorName = asked at the start (the last name used is offered).",
+  "InspectorName": "",
+  "OrganizationName": "",
+  "SiteName": "",
+  "AssetTagExample": "PC-0001",
+  "AskItemNumber": true,
+  "AskAssistant": true,
+
+  "_comment_output": "Empty ReportFolder = a Reports folder next to the script (or Documents when that is read-only). %USERPROFILE% style variables work.",
+  "ReportFolder": "",
+  "AutoPrint": true,
+  "PreferredPrinter": "",
+  "PrintCopies": 1,
+  "SavePdfCopy": true,
+  "SaveBatteryReport": true,
+
+  "_comment_thresholds": "Battery health is % of the original design capacity; SSD wear is % of rated life used.",
+  "BatteryWarnBelow": 70,
+  "BatteryFailBelow": 50,
+  "SsdWearWarnAbove": 80,
+
+  "SpeakerVolumePercent": 70,
+  "HeadphoneVolumePercent": 30,
+
+  "PowerWaitSeconds": 25,
+  "WifiWaitSeconds": 90,
+  "ScreenTestSeconds": 120,
+  "InputTestMinutes": 10,
+  "InventoryTimeoutSeconds": 150,
+
+  "_comment_tests": "A FAIL in a critical test makes the device NOT FUNCTIONAL. SkipTests leaves physical tests out, e.g. [\"Fingerprint reader\", \"Other ports\"].",
+  "CriticalTests": ["Screen / display", "Keyboard", "Storage health", "Charging"],
+  "SkipTests": []
+}
